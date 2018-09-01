@@ -43,6 +43,7 @@ import dataset_common
        |    |->Annotations/
        |    |->...
 '''
+
 tf.app.flags.DEFINE_string('dataset_directory', '/media/rs/7A0EE8880EE83EAF/Detections/PASCAL/VOC',
                            'All datas directory')
 tf.app.flags.DEFINE_string('train_splits', 'VOC2007, VOC2012',
@@ -57,7 +58,14 @@ tf.app.flags.DEFINE_integer('validation_shards', 16,
                             'Number of shards in validation TFRecord files.')
 tf.app.flags.DEFINE_integer('num_threads', 8,
                             'Number of threads to preprocess the images.')
-RANDOM_SEED = 180428
+# data related configuration
+tf.app.flags.DEFINE_float('ratio_data', 1.0,
+                          'Ratio of total training data.')
+tf.app.flags.DEFINE_float('ratio_bbox', 1.0,
+                          'Ratio of total bounding boxes.')
+tf.app.flags.DEFINE_boolean('convert_val', True,
+                          'Convert validation dataset')
+RANDOM_SEED = 4242
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -186,7 +194,7 @@ def _process_image(filename, coder):
   # Read the image file.
   with tf.gfile.FastGFile(filename, 'rb') as f:
     image_data = f.read()
-
+  
   # Decode the RGB JPEG.
   image = coder.decode_jpeg(image_data)
 
@@ -198,7 +206,7 @@ def _process_image(filename, coder):
 
   return image_data, height, width
 
-def _find_image_bounding_boxes(directory, cur_record):
+def _find_image_bounding_boxes(directory, cur_record, ratio_bbox):
   """Find the bounding boxes for a given image file.
 
   Args:
@@ -227,7 +235,9 @@ def _find_image_bounding_boxes(directory, cur_record):
   labels_text = []
   difficult = []
   truncated = []
+  print(ratio_bbox)
   for obj in root.findall('object'):
+    if np.random.binomial(n=1,p=ratio_bbox):
       label = obj.find('name').text
       labels.append(int(dataset_common.VOC_LABELS[label][0]))
       labels_text.append(label.encode('ascii'))
@@ -252,7 +262,7 @@ def _find_image_bounding_boxes(directory, cur_record):
                      ))
   return bboxes, labels, labels_text, difficult, truncated
 
-def _process_image_files_batch(coder, thread_index, ranges, name, directory, all_records, num_shards):
+def _process_image_files_batch(coder, thread_index, ranges, name, directory, all_records, num_shards, ratio_bbox):
   """Processes and saves list of images as TFRecord in 1 thread.
 
   Args:
@@ -291,7 +301,7 @@ def _process_image_files_batch(coder, thread_index, ranges, name, directory, all
       cur_record = all_records[i]
       filename = os.path.join(directory, cur_record[0], 'JPEGImages', cur_record[1])
 
-      bboxes, labels, labels_text, difficult, truncated = _find_image_bounding_boxes(directory, cur_record)
+      bboxes, labels, labels_text, difficult, truncated = _find_image_bounding_boxes(directory, cur_record, ratio_bbox)
       image_buffer, height, width = _process_image(filename, coder)
 
       example = _convert_to_example(filename, cur_record[1], image_buffer, bboxes, labels, labels_text,
@@ -314,7 +324,7 @@ def _process_image_files_batch(coder, thread_index, ranges, name, directory, all
         (datetime.now(), thread_index, counter, num_files_in_thread))
   sys.stdout.flush()
 
-def _process_image_files(name, directory, all_records, num_shards):
+def _process_image_files(name, directory, all_records, num_shards, ratio_bbox):
   """Process and save list of images as TFRecord of Example protos.
 
   Args:
@@ -342,7 +352,7 @@ def _process_image_files(name, directory, all_records, num_shards):
 
   threads = []
   for thread_index in range(len(ranges)):
-    args = (coder, thread_index, ranges, name, directory, all_records, num_shards)
+    args = (coder, thread_index, ranges, name, directory, all_records, num_shards, ratio_bbox)
     t = threading.Thread(target=_process_image_files_batch, args=args)
     t.start()
     threads.append(t)
@@ -353,7 +363,7 @@ def _process_image_files(name, directory, all_records, num_shards):
         (datetime.now(), len(all_records)))
   sys.stdout.flush()
 
-def _process_dataset(name, directory, all_splits, num_shards):
+def _process_dataset(name, directory, all_splits, num_shards, ratio_data, ratio_bbox):
   """Process a complete data set and save it as a TFRecord.
 
   Args:
@@ -368,12 +378,16 @@ def _process_dataset(name, directory, all_splits, num_shards):
     images = tf.gfile.ListDirectory(jpeg_file_path)
     jpegs = [im_name for im_name in images if im_name.strip()[-3:]=='jpg']
     all_records.extend(list(zip([split] * len(jpegs), jpegs)))
-
+  
+  random.seed(RANDOM_SEED)                                                                                                     
+  random.shuffle(all_records)
+  all_records = all_records[:int(len(all_records)*ratio_data)]
+      
   shuffled_index = list(range(len(all_records)))
   random.seed(RANDOM_SEED)
   random.shuffle(shuffled_index)
   all_records = [all_records[i] for i in shuffled_index]
-  _process_image_files(name, directory, all_records, num_shards)
+  _process_image_files(name, directory, all_records, num_shards, ratio_bbox)
 
 def parse_comma_list(args):
     return [s.strip() for s in args.split(',')]
@@ -387,8 +401,9 @@ def main(unused_argv):
   print('Saving results to %s' % FLAGS.output_directory)
 
   # Run it!
-  _process_dataset('val', FLAGS.dataset_directory, parse_comma_list(FLAGS.validation_splits), FLAGS.validation_shards)
-  _process_dataset('train', FLAGS.dataset_directory, parse_comma_list(FLAGS.train_splits), FLAGS.train_shards)
+  if FLAGS.convert_val:
+    _process_dataset('val', FLAGS.dataset_directory, parse_comma_list(FLAGS.validation_splits), FLAGS.validation_shards,1.0,1.0)
+  _process_dataset('train', FLAGS.dataset_directory, parse_comma_list(FLAGS.train_splits), FLAGS.train_shards, FLAGS.ratio_data, FLAGS.ratio_bbox)
 
 if __name__ == '__main__':
   tf.app.run()

@@ -99,3 +99,11 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# output and slurm
+/logs
+/model
+/dataset/tfrecords
+*slurm
+*tar
+/VOCdevkit

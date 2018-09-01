@@ -196,6 +196,7 @@ def input_pipeline(dataset_pattern='train-*', is_training=True, batch_size=FLAGS
                                                                                 anchor_encoder_fn,
                                                                                 num_epochs=FLAGS.train_epochs,
                                                                                 is_training=is_training)
+        print('loc_targets: ',loc_targets)
         global global_anchor_info
         global_anchor_info = {'decode_fn': lambda pred : anchor_encoder_decoder.decode_all_anchors(pred, num_anchors_per_layer),
                             'num_anchors_per_layer': num_anchors_per_layer,

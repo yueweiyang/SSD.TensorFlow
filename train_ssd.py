@@ -285,7 +285,7 @@ def ssd_model_fn(features, labels, mode, params):
         cls_pred = tf.reshape(cls_pred, [-1, params['num_classes']])
         location_pred = tf.reshape(location_pred, [-1, 4])
 
-    with tf.device('/cpu:0'):
+    with tf.device('/gpu:0'):
         with tf.control_dependencies([cls_pred, location_pred]):
             with tf.name_scope('post_forward'):
                 #bboxes_pred = decode_fn(location_pred)
@@ -414,7 +414,6 @@ def main(_):
     config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False, intra_op_parallelism_threads=FLAGS.num_cpu_threads, inter_op_parallelism_threads=FLAGS.num_cpu_threads, gpu_options=gpu_options)
 
     num_gpus = validate_batch_size_for_multi_gpu(FLAGS.batch_size)
-
     # Set up a RunConfig to only save checkpoints once per training cycle.
     run_config = tf.estimator.RunConfig().replace(
                                         save_checkpoints_secs=FLAGS.save_checkpoints_secs).replace(

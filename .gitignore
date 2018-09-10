@@ -107,3 +107,4 @@ ENV/
 *slurm
 *tar
 /VOCdevkit
+/debug

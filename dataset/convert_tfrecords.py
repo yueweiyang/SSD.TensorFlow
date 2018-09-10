@@ -219,7 +219,7 @@ def _find_image_bounding_boxes(directory, cur_record, ratio_bbox):
     difficult: List of ints indicate the difficulty of that bounding box.
     truncated: List of ints indicate the truncation of that bounding box.
   """
-  anna_file = os.path.join(directory, cur_record[0], 'Annotations', cur_record[1].replace('jpg', 'xml'))
+  anna_file = os.path.join(directory, cur_record[0], 'Annotations_{}'.format(ratio_bbox), cur_record[1].replace('jpg', 'xml'))
 
   tree = xml_tree.parse(anna_file)
   root = tree.getroot()
@@ -235,31 +235,29 @@ def _find_image_bounding_boxes(directory, cur_record, ratio_bbox):
   labels_text = []
   difficult = []
   truncated = []
-  print(ratio_bbox)
   for obj in root.findall('object'):
-    if np.random.binomial(n=1,p=ratio_bbox):
-      label = obj.find('name').text
-      labels.append(int(dataset_common.VOC_LABELS[label][0]))
-      labels_text.append(label.encode('ascii'))
+    label = obj.find('name').text
+    labels.append(int(dataset_common.VOC_LABELS[label][0]))
+    labels_text.append(label.encode('ascii'))
+    
+    isdifficult = obj.find('difficult')
+    if isdifficult is not None:
+      difficult.append(int(isdifficult.text))
+    else:
+      difficult.append(0)
 
-      isdifficult = obj.find('difficult')
-      if isdifficult is not None:
-          difficult.append(int(isdifficult.text))
-      else:
-          difficult.append(0)
-
-      istruncated = obj.find('truncated')
-      if istruncated is not None:
-          truncated.append(int(istruncated.text))
-      else:
-          truncated.append(0)
-
-      bbox = obj.find('bndbox')
-      bboxes.append((float(bbox.find('ymin').text) / shape[0],
-                     float(bbox.find('xmin').text) / shape[1],
-                     float(bbox.find('ymax').text) / shape[0],
-                     float(bbox.find('xmax').text) / shape[1]
-                     ))
+    istruncated = obj.find('truncated')
+    if istruncated is not None:
+      truncated.append(int(istruncated.text))
+    else:
+      truncated.append(0)
+      
+    bbox = obj.find('bndbox')
+    bboxes.append((float(bbox.find('ymin').text) / shape[0],
+                   float(bbox.find('xmin').text) / shape[1],
+                   float(bbox.find('ymax').text) / shape[0],
+                   float(bbox.find('xmax').text) / shape[1]
+                 ))
   return bboxes, labels, labels_text, difficult, truncated
 
 def _process_image_files_batch(coder, thread_index, ranges, name, directory, all_records, num_shards, ratio_bbox):
@@ -399,7 +397,7 @@ def main(unused_argv):
       'Please make the FLAGS.num_threads commensurate with '
       'FLAGS.validation_shards')
   print('Saving results to %s' % FLAGS.output_directory)
-
+  print('Data Ratio: ',FLAGS.ratio_data,'\tBox Ratio: ',FLAGS.ratio_bbox)
   # Run it!
   if FLAGS.convert_val:
     _process_dataset('val', FLAGS.dataset_directory, parse_comma_list(FLAGS.validation_splits), FLAGS.validation_shards,1.0,1.0)

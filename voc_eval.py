@@ -36,10 +36,10 @@ VOC2007TEST
 '''
 dataset_path = './VOCdevkit/VOC2007TEST'
 # change above path according to your system settings
-pred_path = './logs/predict'
+pred_path = './logs/data50box100/predict'
 pred_file = 'results_{}.txt' # from 1-num_classes
-output_path = './logs/predict/eval_output'
-cache_path = './logs/predict/eval_cache'
+output_path = './logs/data50box100/predict/eval_output'
+cache_path = './logs/data50box100/predict/eval_cache'
 anno_files = 'Annotations/{}.xml'
 all_images_file = 'ImageSets/Main/test.txt'
 
